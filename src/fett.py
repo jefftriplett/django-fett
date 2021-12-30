@@ -83,6 +83,12 @@ def get_field_names(fields):
     return [x.name for x in fields]
 
 
+class App:
+    def __init__(self, *, app):
+        self.app = app
+        self.models = Models(app=app)
+
+
 class Field:
     def __init__(self, field):
         self.field = field
@@ -267,10 +273,17 @@ class Models(list):
 
 
 def main(
-    app_name: Optional[str] = "app",  # TODO: clean this up...
-    include_hidden: Optional[bool] = False,
-    include_parents: Optional[bool] = True,
-    input_filename: str = typer.Option("input"),
+    app_name: str = "app",  # TODO: clean this up...
+    input_filename: Path = typer.Option(
+        "input",
+        "--input",
+        allow_dash=True,
+        dir_okay=True,
+        file_okay=True,
+        readable=True,
+        resolve_path=True,
+        writable=False,
+    ),
     overwrite: Optional[bool] = False,
 ):
 
@@ -278,45 +291,72 @@ def main(
     # get_models = AppConfig.get_models
 
     app = get_app(app_name)
+    app = App(app=app)
 
-    models = Models(app=app)
+    if input_filename is None:
+        source_contents = None
+        raise typer.Abort()
+
+    elif input_filename.is_file():
+        source_contents = input_filename.read_text()
+
+    elif input_filename.is_dir():
+        source_contents = None
+        raise typer.Abort()
+
+    elif str(input_filename) == "-":
+        source_contents = sys.stdin.read()
+
+    else:
+        source_contents = None
+        raise typer.Abort()
+
+    post = frontmatter.loads(source_contents)
+
+    has_filename = "filename" in post.metadata
+    has_model_in_filename = has_filename or "__model__" in post.metadata
+
+    if has_model_in_filename:
+        models = app.models
+    else:
+        models = [None]
 
     for model in models:
-        with Path(input_filename).open() as input_buffer:
+        if model:
             print(
-                f"processing [italic]{inflection.underscore(model.name)}[/italic] model..."
+                f"found [italic][yellow]{inflection.underscore(model.name)}[/yellow][/italic] model..."
             )
 
-            # first pass:
-            # - process source with jinja2
-            # - read frontmatter
-            source_contents = input_buffer.read()
-            template = Template(source_contents)
-            context = {
-                "__app__": app,
-                "__model__": model,
-            }
-            output = template.render(context)
-            post = frontmatter.loads(output)
+        # first pass:
+        # - process source with jinja2
+        # - read frontmatter
+        template = Template(source_contents)
+        context = {
+            "__app__": app,
+            "__model__": model,
+        }
+        output = template.render(context)
+        post = frontmatter.loads(output)
 
-            # second pass:
-            # - extra metadata from frontmatter
-            # - process source with jinja2 using metadata
-            metadata = post.metadata
-            template = Template(source_contents)
+        # second pass:
+        # - extra metadata from frontmatter
+        # - process source with jinja2 using metadata
+        metadata = post.metadata
+        template = Template(source_contents)
 
-            context["__metadata__"] = metadata
+        context["__metadata__"] = metadata
 
-            output = template.render(context)
-            post = frontmatter.loads(output)
+        output = template.render(context)
+        post = frontmatter.loads(output)
 
-            assert "filename" in post
-
+        if "filename" in post:
             output_path = Path(post["filename"])
             if not output_path.parent.exists():
                 output_path.parent.mkdir(parents=True)
-
             output_path.write_text(post.content)
+
+        else:
+            print(post.content)
 
 
 if __name__ == "__main__":

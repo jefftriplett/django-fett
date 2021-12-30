@@ -8,9 +8,33 @@ Frontmatter Metadata may also contain variables that make setting an output file
 
 ## TODO: Quick start
 
+## Templates
+
+A Fett template is a header of a markdown-like frontmatter and a body of an Jinja2 templating engine.
+
+```markdown
+---                               <---- frontmatter section
+filename: app/{{ __model__.meta_model_name }}.py
+---
+
+from django.contrib import admin  <---- body, Jinja
+
+class {{ __model__.name }}Admin(admin.ModelAdmin):
+    pass
+
+```
+
+## Predefined Variables
+
+| Variable | Content | Example | 
+| ---- | ---- | ---- |
+| `__app__` | |
+| `__metadata__` | | 
+| `__model__` | | 
+
 ## Example Usage
 
-### Example Template (`./examples/list_models.html`)
+### Example Template (`./_templates/list_models.html`)
 
 ```html
 ---
@@ -31,7 +55,7 @@ filename: output/{{ __model__.meta_model_name }}.py
 This example assumes we have a model in `app/models.py` which contains a model named `Backup`.
 
 ```shell
-python src/fett.py --app-name=app --input-filename=./examples/list_models.html
+python src/fett.py --app-name=app --input=./_templates/list_models.html
 ```
 
 This will create a file for every model in our `models.py` file.
