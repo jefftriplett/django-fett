@@ -1,0 +1,8 @@
+# django_postgres_unlimited_varchar  # optional
+django
+frontmatter
+inflection
+jinja2
+psycopg2
+rich
+typer
