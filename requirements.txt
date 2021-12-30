@@ -14,8 +14,6 @@ commonmark==0.9.1
     # via rich
 django==4.0
     # via -r requirements.in
-frontmatter==3.0.7
-    # via -r requirements.in
 inflection==0.5.1
     # via -r requirements.in
 jinja2==3.0.3
@@ -26,8 +24,10 @@ psycopg2==2.9.3
     # via -r requirements.in
 pygments==2.10.0
     # via rich
-pyyaml==5.1
-    # via frontmatter
+python-frontmatter==1.0.0
+    # via -r requirements.in
+pyyaml==6.0
+    # via python-frontmatter
 rich==10.16.1
     # via -r requirements.in
 sqlparse==0.4.2

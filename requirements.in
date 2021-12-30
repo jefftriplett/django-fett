@@ -1,8 +1,8 @@
 # django_postgres_unlimited_varchar  # optional
 django
-frontmatter
 inflection
 jinja2
 psycopg2
+python-frontmatter
 rich
 typer
