@@ -14,7 +14,7 @@ A Fett template is a header of a markdown-like frontmatter and a body of an Jinj
 
 ```markdown
 ---                               <---- frontmatter section
-filename: app/{{ __model__.meta_model_name }}.py
+to: app/{{ __model__.meta_model_name }}.py
 ---
 
 from django.contrib import admin  <---- body, Jinja
@@ -38,7 +38,7 @@ class {{ __model__.name }}Admin(admin.ModelAdmin):
 
 ```html
 ---
-filename: output/{{ __model__.meta_model_name }}.py
+to: output/{{ __model__.meta_model_name }}.py
 ---
 
 # App: {{ __app__.name }}

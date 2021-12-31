@@ -351,7 +351,7 @@ def main(
 
     post = frontmatter.loads(source_contents)
 
-    has_filename = "filename" in post.metadata
+    has_filename = "to" in post.metadata
     has_model_in_filename = has_filename or "__model__" in post.metadata
 
     if has_model_in_filename:
@@ -369,6 +369,7 @@ def main(
         template = Template(source_contents)
         context = {
             "__app__": app,
+            "__metadata__": None,
             "__model__": model,
         }
         output = template.render(context)
@@ -383,16 +384,19 @@ def main(
         metadata = post.metadata
         template = Template(source_contents)
 
+        # added our parsed metadata to our complete context
         context["__metadata__"] = metadata
 
         output = template.render(context)
         post = frontmatter.loads(output)
 
-        if "filename" in post:
-            output_path = Path(post["filename"])
+        if "to" in post.metadata:
+            output_path = Path(post["to"])
             if not output_path.parent.exists():
                 output_path.parent.mkdir(parents=True)
-            output_path.write_text(post.content)
+
+            if not output_path.exists() or overwrite:
+                output_path.write_text(post.content)
 
         else:
             print(post.content)
