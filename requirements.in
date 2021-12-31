@@ -2,7 +2,11 @@
 django
 inflection
 jinja2
+model-bakery
 psycopg2
+pytest
+pytest-django
 python-frontmatter
+responses
 rich
 typer
