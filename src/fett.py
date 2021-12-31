@@ -1,5 +1,6 @@
 import django
 import frontmatter
+import gzip
 import inflection
 import os
 import sys
@@ -27,6 +28,8 @@ from jinja2 import Template
 from pathlib import Path
 from rich import print
 from typing import Optional
+from urllib.parse import urlparse
+from urllib.request import urlopen
 
 
 # bootstrap Django
@@ -44,6 +47,8 @@ except ImportError:
     def get_models(app):
         yield from app.get_models()
 
+
+SUPPORTED_SCHEMES = ("http", "https")
 
 # TODO: set this via config and/or ENV
 IGNORE_FIELD_NAMES = [
@@ -87,6 +92,10 @@ class App:
     def __init__(self, *, app):
         self.app = app
         self.models = Models(app=app)
+
+    @property
+    def name(self):
+        return self.app.name
 
 
 class Field:
@@ -237,12 +246,23 @@ class Model:
         return self.model._meta.verbose_name_plural
 
     @property
+    def meta_object_name(self):
+        return self.model._meta.object_name
+
+    @property
     def name(self):
+        # TODO: same as `meta_object_name`
         return self.model._meta.object_name
 
     @property
     def snake_case_name(self):
-        return camel_case_to_spaces(self.name).replace(" ", "_")
+        return camel_case_to_spaces(self.model._meta.object_name).replace(" ", "_")
+
+    @property
+    def snake_case_name_plural(self):
+        return camel_case_to_spaces(self.model._meta.verbose_name_plural).replace(
+            " ", "_"
+        )
 
     @property
     def string_field_names(self):
@@ -297,18 +317,36 @@ def main(
         source_contents = None
         raise typer.Abort()
 
-    elif input_filename.is_file():
-        source_contents = input_filename.read_text()
+    elif input_filename.exists():
+        if input_filename.is_file():
+            source_contents = input_filename.read_text()
 
-    elif input_filename.is_dir():
-        source_contents = None
-        raise typer.Abort()
+        elif input_filename.is_dir():
+            source_contents = None
+            raise typer.Abort()
+
+        else:
+            raise typer.Abort()
 
     elif str(input_filename) == "-":
         source_contents = sys.stdin.read()
 
-    else:
+    elif str(input_filename).startswith("http"):
         source_contents = None
+        url = urlparse(input_filename)
+        if url.scheme not in SUPPORTED_SCHEMES:
+            print(f"{url.scheme} scheme is not supported")
+            raise typer.Abort()
+
+        if url.scheme in SUPPORTED_SCHEMES:
+            if input_filename.endswith(".gz"):
+                source_contents = gzip.GzipFile(
+                    mode="r", fileobj=urlopen(input_filename)
+                )
+
+            source_contents = urlopen(input_filename)
+
+    else:
         raise typer.Abort()
 
     post = frontmatter.loads(source_contents)
@@ -327,15 +365,16 @@ def main(
                 f"found [italic][yellow]{inflection.underscore(model.name)}[/yellow][/italic] model..."
             )
 
-        # first pass:
-        # - process source with jinja2
-        # - read frontmatter
+        # render our entire document/template with jinja2
         template = Template(source_contents)
         context = {
             "__app__": app,
             "__model__": model,
         }
         output = template.render(context)
+
+        # load our process file into Frontmatter so we can pull out the
+        # post processed metadata.
         post = frontmatter.loads(output)
 
         # second pass:
