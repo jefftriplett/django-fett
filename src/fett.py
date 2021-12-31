@@ -292,6 +292,42 @@ class Models(list):
         self.extend([Model(model=model) for model in get_models(self.app)])
 
 
+def open_anything(*, filename: str):
+    """
+    Wrap input to read from filenames, folders (soon), streams (via "-"),
+    remote urls (https), or even gzip archived files.
+    """
+    if filename is None:
+        raise typer.Abort()
+
+    elif filename.exists():
+        if filename.is_file():
+            return filename.read_text()
+
+        elif filename.is_dir():
+            raise typer.Abort()
+
+        else:
+            raise typer.Abort()
+
+    elif str(filename) == "-":
+        return sys.stdin.read()
+
+    elif str(filename).startswith("http"):
+        url = urlparse(filename)
+        if url.scheme not in SUPPORTED_SCHEMES:
+            print(f"{url.scheme} scheme is not supported")
+            raise typer.Abort()
+
+        if url.scheme in SUPPORTED_SCHEMES:
+            if filename.endswith(".gz"):
+                return gzip.GzipFile(mode="r", fileobj=urlopen(filename))
+            return urlopen(filename)
+
+    else:
+        raise typer.Abort()
+
+
 def main(
     app_name: str = "app",  # TODO: clean this up...
     input_filename: Path = typer.Option(
@@ -313,41 +349,7 @@ def main(
     app = get_app(app_name)
     app = App(app=app)
 
-    if input_filename is None:
-        source_contents = None
-        raise typer.Abort()
-
-    elif input_filename.exists():
-        if input_filename.is_file():
-            source_contents = input_filename.read_text()
-
-        elif input_filename.is_dir():
-            source_contents = None
-            raise typer.Abort()
-
-        else:
-            raise typer.Abort()
-
-    elif str(input_filename) == "-":
-        source_contents = sys.stdin.read()
-
-    elif str(input_filename).startswith("http"):
-        source_contents = None
-        url = urlparse(input_filename)
-        if url.scheme not in SUPPORTED_SCHEMES:
-            print(f"{url.scheme} scheme is not supported")
-            raise typer.Abort()
-
-        if url.scheme in SUPPORTED_SCHEMES:
-            if input_filename.endswith(".gz"):
-                source_contents = gzip.GzipFile(
-                    mode="r", fileobj=urlopen(input_filename)
-                )
-
-            source_contents = urlopen(input_filename)
-
-    else:
-        raise typer.Abort()
+    source_contents = open_anything(filename=input_filename)
 
     post = frontmatter.loads(source_contents)
 
