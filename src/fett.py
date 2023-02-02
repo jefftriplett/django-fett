@@ -367,7 +367,6 @@ def main(
     sort_models: Optional[bool] = True,
     stdout: Optional[bool] = False,
 ):
-
     bootstrap_django()
 
     get_app = apps.get_app_config
