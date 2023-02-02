@@ -27,11 +27,24 @@ set dotenv-load := false
 
 # runs tests
 @test:
-    echo "TODO: test"
+    python src/fett.py \
+        --app-name=testapp \
+        --input=./_templates/admin.py \
+        --overwrite
+
+    echo
+
+    python src/fett.py \
+        --app-name=testapp \
+        --input=./_templates/fixtures.py \
+        --overwrite
+
+    # python src/fett.py \
+    #     --app-name=app \
+    #     --input-filename=./_templates/list_models.html
 
 # updates a project to run at its current version
 @update:
-    pip install -U pip
-    rm -f requirements.txt
-    pip install -U -r requirements.in
-    pip-compile requirements.in
+    pip install --upgrade pip pip-tools
+    pip install --upgrade --requirement requirements.in
+    pip-compile --resolver=backtracking requirements.in
