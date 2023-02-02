@@ -3,7 +3,8 @@ django
 inflection
 jinja2
 model-bakery
-psycopg2
+psycopg2-binary
+pyfakefs
 pytest
 pytest-django
 python-frontmatter
