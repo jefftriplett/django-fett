@@ -2,12 +2,15 @@
 django
 inflection
 jinja2
+python-frontmatter
+rich
+typer
+
 model-bakery
 psycopg2-binary
 pyfakefs
 pytest
 pytest-django
-python-frontmatter
-responses
-rich
-typer
+pytest-mock
+requests-mock
+# responses
