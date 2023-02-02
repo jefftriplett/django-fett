@@ -48,6 +48,13 @@ except ImportError:
         yield from app.get_models()
 
 
+BLOCK_END_STRING = "%}"
+BLOCK_START_STRING = "{%"
+COMMENT_END_STRING = "#}"
+COMMENT_START_STRING = "{#"
+VARIABLE_END_STRING = "}}"
+VARIABLE_START_STRING = "{{"
+
 SUPPORTED_SCHEMES = ("http", "https")
 
 # TODO: set this via config and/or ENV
@@ -84,14 +91,10 @@ STRING_FIELDS = (
 )
 
 
-def get_field_names(fields):
-    return [x.name for x in fields]
-
-
 class App:
-    def __init__(self, *, app):
+    def __init__(self, *, app: object, sort_models: bool = True):
         self.app = app
-        self.models = Models(app=app)
+        self.models = Models(app=app, sort_models=sort_models)
 
     @property
     def name(self):
@@ -99,19 +102,19 @@ class App:
 
 
 class Field:
-    def __init__(self, field):
+    def __init__(self, *, field: object):
         self.field = field
 
 
 class Fields(list):
-    def __init__(self, model):
+    def __init__(self, *, model: object):
         super().__init__()
         self.model = model
         self.extend([Field(field=field) for field in self.model._meta.concrete_fields])
 
 
 class Model:
-    def __init__(self, *, model: str):
+    def __init__(self, *, model: object):
         self.model = model
 
     def __str__(self):
@@ -286,53 +289,73 @@ class Model:
 
 
 class Models(list):
-    def __init__(self, *, app: str):
+    def __init__(self, *, app: "App", sort_models: bool = True):
         super().__init__()
         self.app = app
-        self.extend([Model(model=model) for model in get_models(self.app)])
+        models = [Model(model=model) for model in get_models(self.app)]
+
+        # sorts models by name
+        if sort_models:
+            models = [model for model in sorted(models, key=lambda k: k.name)]
+
+        self.extend(models)
 
 
-def open_anything(*, filename: str):
+def bootstrap_django() -> None:
+    sys.path.append(".")
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+    django.setup()
+
+
+def get_field_names(fields):
+    return [x.name for x in fields]
+
+
+def open_anything(*, path: str):
     """
-    Wrap input to read from filenames, folders (soon), streams (via "-"),
+    Wrap path to read from paths, folders (soon), streams (via "-"),
     remote urls (https), or even gzip archived files.
     """
-    if filename is None:
+    if path is None:
         raise typer.Abort()
 
-    elif filename.exists():
-        if filename.is_file():
-            return filename.read_text()
+    elif Path(path).exists():
+        if Path(path).is_file():
+            return Path(path).read_text()
 
-        elif filename.is_dir():
+        elif Path(path).is_dir():
             raise typer.Abort()
 
         else:
             raise typer.Abort()
 
-    elif str(filename) == "-":
+    elif str(path) == "-":
         return sys.stdin.read()
 
-    elif str(filename).startswith("http"):
-        url = urlparse(filename)
+    elif str(path).startswith("http"):
+        url = urlparse(path)
         if url.scheme not in SUPPORTED_SCHEMES:
             print(f"{url.scheme} scheme is not supported")
             raise typer.Abort()
 
         if url.scheme in SUPPORTED_SCHEMES:
-            if filename.endswith(".gz"):
-                return gzip.GzipFile(mode="r", fileobj=urlopen(filename))
-            return urlopen(filename)
+            if path.endswith(".gz"):
+                return gzip.GzipFile(mode="r", fileobj=urlopen(path))
+            return urlopen(path)
 
     else:
         raise typer.Abort()
 
 
+app = typer.Typer()
+
+
+@app.command()
 def main(
-    app_name: str = "app",  # TODO: clean this up...
-    input_filename: Path = typer.Option(
-        "input",
-        "--input",
+    app_name: str,
+    path: Path = typer.Option(
+        "path",
+        "--path",
         allow_dash=True,
         dir_okay=True,
         file_okay=True,
@@ -341,7 +364,11 @@ def main(
         writable=False,
     ),
     overwrite: Optional[bool] = False,
+    sort_models: Optional[bool] = True,
+    stdout: Optional[bool] = False,
 ):
+
+    bootstrap_django()
 
     get_app = apps.get_app_config
     # get_models = AppConfig.get_models
@@ -349,14 +376,25 @@ def main(
     app = get_app(app_name)
     app = App(app=app)
 
-    source_contents = open_anything(filename=input_filename)
+    source_contents = open_anything(path=path)
 
     post = frontmatter.loads(source_contents)
 
-    has_filename = "to" in post.metadata
-    has_model_in_filename = has_filename or "__model__" in post.metadata
+    block_start_string = post.metadata.get("block_start_string", BLOCK_START_STRING)
+    block_end_string = post.metadata.get("block_end_string", BLOCK_END_STRING)
+    variable_start_string = post.metadata.get(
+        "variable_start_string", VARIABLE_START_STRING
+    )
+    variable_end_string = post.metadata.get("variable_end_string", VARIABLE_END_STRING)
+    comment_start_string = post.metadata.get(
+        "comment_start_string", COMMENT_START_STRING
+    )
+    comment_end_string = post.metadata.get("comment_end_string", COMMENT_END_STRING)
 
-    if has_model_in_filename:
+    has_path = "to" in post.metadata
+    has_model_in_path = has_path and "__model__" in post.metadata
+
+    if has_model_in_path:
         models = app.models
     else:
         models = [None]
@@ -368,7 +406,17 @@ def main(
             )
 
         # render our entire document/template with jinja2
-        template = Template(source_contents)
+        template = Template(
+            source_contents,
+            block_start_string=block_start_string,
+            block_end_string=block_end_string,
+            variable_start_string=variable_start_string,
+            variable_end_string=variable_end_string,
+            comment_start_string=comment_start_string,
+            comment_end_string=comment_end_string,
+            # line_statement_prefix=None,
+            # line_comment_prefix=None,
+        )
         context = {
             "__app__": app,
             "__metadata__": None,
@@ -384,7 +432,18 @@ def main(
         # - extra metadata from frontmatter
         # - process source with jinja2 using metadata
         metadata = post.metadata
-        template = Template(source_contents)
+
+        template = Template(
+            source_contents,
+            block_end_string=block_end_string,
+            block_start_string=block_start_string,
+            comment_end_string=comment_end_string,
+            comment_start_string=comment_start_string,
+            variable_end_string=variable_end_string,
+            variable_start_string=variable_start_string,
+            # line_comment_prefix=None,
+            # line_statement_prefix=None,
+        )
 
         # added our parsed metadata to our complete context
         context["__metadata__"] = metadata
@@ -392,7 +451,10 @@ def main(
         output = template.render(context)
         post = frontmatter.loads(output)
 
-        if "to" in post.metadata:
+        if stdout:
+            print(frontmatter.dumps(post))
+
+        elif "to" in post.metadata:
             output_path = Path(post["to"])
             if not output_path.parent.exists():
                 output_path.parent.mkdir(parents=True)
@@ -400,9 +462,6 @@ def main(
             if not output_path.exists() or overwrite:
                 output_path.write_text(post.content)
 
-        else:
-            print(post.content)
-
 
 if __name__ == "__main__":
-    typer.run(main)
+    app()
