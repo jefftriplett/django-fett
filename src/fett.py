@@ -3,6 +3,7 @@ import frontmatter
 import gzip
 import inflection
 import os
+import requests
 import sys
 import typer
 
@@ -341,7 +342,7 @@ def open_anything(*, path: str):
         if url.scheme in SUPPORTED_SCHEMES:
             if path.endswith(".gz"):
                 return gzip.GzipFile(mode="r", fileobj=urlopen(path))
-            return urlopen(path)
+            return requests.get(path).text
 
     else:
         raise typer.Abort()
