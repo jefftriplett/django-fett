@@ -55,7 +55,7 @@ to: output/{{ __model__.meta_model_name }}.py
 This example assumes we have a model in `app/models.py` which contains a model named `Backup`.
 
 ```shell
-python src/fett.py --app-name=app --input=./_templates/list_models.html
+fett --stdout --path=./_templates/list_models.html.t app
 ```
 
 This will create a file for every model in our `models.py` file.
