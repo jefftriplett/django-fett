@@ -7,37 +7,48 @@ import requests
 import sys
 import typer
 
+# from django.db.models import BinaryField
+# from django.db.models import DurationField
+# from django.db.models import EmailField
+# from django.db.models import FileField
+# from django.db.models import FloatField
+# from django.db.models import GenericIPAddressField
+# from django.db.models import ImageField
+# from django.db.models import IPAddressField
+# from django.db.models import ManyToManyField
+# from django.db.models import SlugField
+# from django.db.models import TimeField
+# from django.db.models import URLField
+# from django.db.models import UUIDField
+# from django.db.models.fields import UUIDField
 from django.apps import apps
 from django.contrib.postgres.fields import ArrayField
+from django.db.models import AutoField
+from django.db.models import BigIntegerField
+from django.db.models import BooleanField
+from django.db.models import CharField
+from django.db.models import DateField
+from django.db.models import DateTimeField
+from django.db.models import DecimalField
 from django.db.models import ForeignKey
+from django.db.models import IntegerField
 from django.db.models import JSONField
 from django.db.models import OneToOneField
-from django.db.models.fields import AutoField
-from django.db.models.fields import BooleanField
-from django.db.models.fields import CharField
-from django.db.models.fields import DateField
-from django.db.models.fields import DateTimeField
-from django.db.models.fields import DecimalField
-from django.db.models.fields import IntegerField
-from django.db.models.fields import SmallIntegerField
-from django.db.models.fields import TextField
+from django.db.models import PositiveIntegerField
+from django.db.models import PositiveSmallIntegerField
+from django.db.models import SmallIntegerField
+from django.db.models import TextField
 from django.utils.text import camel_case_to_spaces
 
-# from django.db.models.fields import UUIDField
 # from django_postgres_unlimited_varchar import UnlimitedCharField
 from jinja2 import Template
 from pathlib import Path
 from rich import print
+from typing import List
 from typing import Optional
 from urllib.parse import urlparse
-from urllib.request import urlopen
 
-
-# bootstrap Django
-# TODO: clean this up
-sys.path.append(".")
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
-django.setup()
+# from urllib.request import urlopen
 
 
 try:
@@ -82,7 +93,10 @@ FOREIGN_FIELDS = (
     OneToOneField,
 )
 INTEGER_FIELDS = (
+    BigIntegerField,
     IntegerField,
+    PositiveIntegerField,
+    PositiveSmallIntegerField,
     SmallIntegerField,
 )
 STRING_FIELDS = (
@@ -98,7 +112,7 @@ class App:
         self.models = Models(app=app, sort_models=sort_models)
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self.app.name
 
 
@@ -230,40 +244,40 @@ class Model:
         )
 
     @property
-    def local_field_names(self):
+    def local_field_names(self) -> str:
         return get_field_names(self.model._meta.local_fields)
 
     @property
-    def meta_db_table(self):
+    def meta_db_table(self) -> str:
         return self.model._meta.db_table
 
     @property
-    def meta_model_name(self):
+    def meta_model_name(self) -> str:
         return self.model._meta.model_name
 
     @property
-    def meta_verbose_name(self):
+    def meta_verbose_name(self) -> str:
         return self.model._meta.verbose_name
 
     @property
-    def meta_verbose_name_plural(self):
+    def meta_verbose_name_plural(self) -> str:
         return self.model._meta.verbose_name_plural
 
     @property
-    def meta_object_name(self):
+    def meta_object_name(self) -> str:
         return self.model._meta.object_name
 
     @property
-    def name(self):
+    def name(self) -> str:
         # TODO: same as `meta_object_name`
         return self.model._meta.object_name
 
     @property
-    def snake_case_name(self):
+    def snake_case_name(self) -> str:
         return camel_case_to_spaces(self.model._meta.object_name).replace(" ", "_")
 
     @property
-    def snake_case_name_plural(self):
+    def snake_case_name_plural(self) -> str:
         return camel_case_to_spaces(self.model._meta.verbose_name_plural).replace(
             " ", "_"
         )
@@ -277,15 +291,15 @@ class Model:
         )
 
     @property
-    def tableize(self):
+    def tableize(self) -> str:
         return inflection.tableize(self.meta_verbose_name)
 
     @property
-    def underscore(self):
+    def underscore(self) -> str:
         return inflection.underscore(self.meta_verbose_name.replace(" ", ""))
 
     @property
-    def underscore_plural(self):
+    def underscore_plural(self) -> str:
         return inflection.underscore(self.meta_verbose_name_plural.replace(" ", ""))
 
 
@@ -340,22 +354,63 @@ def open_anything(*, path: str):
             raise typer.Abort()
 
         if url.scheme in SUPPORTED_SCHEMES:
-            if path.endswith(".gz"):
-                return gzip.GzipFile(mode="r", fileobj=urlopen(path))
-            return requests.get(path).text
+            try:
+                if path.endswith(".gz"):
+                    response = requests.get(path)
+                    response.raise_for_status()
+                    return gzip.GzipFile(mode="r", fileobj=response)
+                    # return gzip.GzipFile(mode="r", fileobj=urlopen(path))
+                response = requests.get(path)
+                response.raise_for_status()
+                return response.text
+            except Exception:
+                raise typer.Abort()
 
     else:
         raise typer.Abort()
 
 
-app = typer.Typer()
+class Fett:
+    def __init__(
+        self,
+        *,
+        block_end_string: str = BLOCK_END_STRING,
+        block_start_string: str = BLOCK_START_STRING,
+        comment_end_string: str = COMMENT_END_STRING,
+        comment_start_string: str = COMMENT_START_STRING,
+        variable_end_string: str = VARIABLE_END_STRING,
+        variable_start_string: str = VARIABLE_START_STRING,
+    ):
+        self.block_end_string = block_end_string
+        self.block_start_string = block_start_string
+        self.comment_end_string = comment_end_string
+        self.comment_start_string = comment_start_string
+        self.variable_end_string = variable_end_string
+        self.variable_start_string = variable_start_string
+
+    def get_template(self, *, source: str) -> Template:
+        return Template(
+            source,
+            block_end_string=self.block_end_string,
+            block_start_string=self.block_start_string,
+            comment_end_string=self.comment_end_string,
+            comment_start_string=self.comment_start_string,
+            variable_end_string=self.variable_end_string,
+            variable_start_string=self.variable_start_string,
+            # line_comment_prefix=None,
+            # line_statement_prefix=None,
+        )
 
 
-@app.command()
+cli = typer.Typer()
+
+
+@cli.command()
 def main(
     app_name: str,
-    path: Path = typer.Option(
-        "path",
+    overwrite: Optional[bool] = False,
+    paths: List[Path] = typer.Option(
+        None,
         "--path",
         allow_dash=True,
         dir_okay=True,
@@ -364,7 +419,6 @@ def main(
         resolve_path=True,
         writable=False,
     ),
-    overwrite: Optional[bool] = False,
     sort_models: Optional[bool] = True,
     stdout: Optional[bool] = False,
 ):
@@ -376,92 +430,100 @@ def main(
     app = get_app(app_name)
     app = App(app=app)
 
-    source_contents = open_anything(path=path)
+    fett = Fett()
 
-    post = frontmatter.loads(source_contents)
+    for path in paths:
+        # ------------------------------------------------------------
+        # Step 0
+        # ------------------------------------------------------------
 
-    block_start_string = post.metadata.get("block_start_string", BLOCK_START_STRING)
-    block_end_string = post.metadata.get("block_end_string", BLOCK_END_STRING)
-    variable_start_string = post.metadata.get(
-        "variable_start_string", VARIABLE_START_STRING
-    )
-    variable_end_string = post.metadata.get("variable_end_string", VARIABLE_END_STRING)
-    comment_start_string = post.metadata.get(
-        "comment_start_string", COMMENT_START_STRING
-    )
-    comment_end_string = post.metadata.get("comment_end_string", COMMENT_END_STRING)
+        source = open_anything(path=path)
 
-    has_path = "to" in post.metadata
-    has_model_in_path = has_path and "__model__" in post.metadata
+        post = frontmatter.loads(source)
 
-    if has_model_in_path:
-        models = app.models
-    else:
-        models = [None]
+        _force = bool(post.metadata.get("force", False))
+        _from = post.metadata.get("from", None)
+        _sh = post.metadata.get("sh", None)
+        _to = post.metadata.get("to", None)
+        _unless_exists = bool(post.metadata.get("unless_exists", True))
 
-    for model in models:
-        if model:
-            print(
-                f"found [italic][yellow]{inflection.underscore(model.name)}[/yellow][/italic] model..."
-            )
+        """
+        see: https://www.hygen.io/docs/templates#all-frontmatter-properties
+        TODO: Move into a class along with...
+        - force: bool = False
+        - from: str = None
+        - sh: str = None
+        - to: str = None
+        - unless_exists: bool = True
 
-        # render our entire document/template with jinja2
-        template = Template(
-            source_contents,
-            block_start_string=block_start_string,
-            block_end_string=block_end_string,
-            variable_start_string=variable_start_string,
-            variable_end_string=variable_end_string,
-            comment_start_string=comment_start_string,
-            comment_end_string=comment_end_string,
-            # line_statement_prefix=None,
-            # line_comment_prefix=None,
-        )
-        context = {
-            "__app__": app,
-            "__metadata__": None,
-            "__model__": model,
-        }
-        output = template.render(context)
+        maybe...
+        - inject
+        - after
+        - skip_if
+        """
 
-        # load our process file into Frontmatter so we can pull out the
-        # post processed metadata.
-        post = frontmatter.loads(output)
+        has_path = "to" in post.metadata
+        has_model_in_path = has_path and "__model__" in post.metadata
 
-        # second pass:
-        # - extra metadata from frontmatter
-        # - process source with jinja2 using metadata
-        metadata = post.metadata
+        if has_model_in_path:
+            models = app.models
+        else:
+            models = [None]
 
-        template = Template(
-            source_contents,
-            block_end_string=block_end_string,
-            block_start_string=block_start_string,
-            comment_end_string=comment_end_string,
-            comment_start_string=comment_start_string,
-            variable_end_string=variable_end_string,
-            variable_start_string=variable_start_string,
-            # line_comment_prefix=None,
-            # line_statement_prefix=None,
-        )
+        for model in models:
+            if model:
+                print(
+                    f"found [italic][yellow]{inflection.underscore(model.name)}[/yellow][/italic] model..."
+                )
 
-        # added our parsed metadata to our complete context
-        context["__metadata__"] = metadata
+            # ------------------------------------------------------------
+            # Pass 1: render our entire document/template with jinja2.
+            # ------------------------------------------------------------
 
-        output = template.render(context)
-        post = frontmatter.loads(output)
+            template = fett.get_template(source=source)
+            context = {
+                "__app__": app,
+                "__metadata__": None,
+                "__model__": model,
+            }
+            output = template.render(context)
 
-        if stdout:
-            print(frontmatter.dumps(post))
+            # ------------------------------------------------------------
+            # Pass 2: load our process file into Frontmatter so we can
+            # pull out the post processed metadata.
+            # ------------------------------------------------------------
 
-        elif "to" in post.metadata:
-            output_path = Path(post["to"])
-            if not output_path.parent.exists():
-                output_path.parent.mkdir(parents=True)
+            post = frontmatter.loads(output)
 
-            if not output_path.exists() or overwrite:
-                output_path.write_text(post.content)
+            # second pass:
+            # - extra metadata from frontmatter
+            # - process source with jinja2 using metadata
+            metadata = post.metadata
+
+            template = fett.get_template(source=source)
+
+            # added our parsed metadata to our complete context
+            context["__metadata__"] = metadata
+
+            output = template.render(context)
+
+            # ------------------------------------------------------------
+            # Pass 3: Output
+            # ------------------------------------------------------------
+
+            post = frontmatter.loads(output)
+
+            if stdout:
+                print(frontmatter.dumps(post))
+
+            elif "to" in post.metadata:
+                output_path = Path(post["to"])
+                if not output_path.parent.exists():
+                    output_path.parent.mkdir(parents=True)
+
+                if not output_path.exists() or overwrite:
+                    output_path.write_text(post.content)
 
 
 if __name__ == "__main__":
-    app()
+    cli()
